@@ -6,6 +6,8 @@ require 'TrelloCredentials'
 require_relative '../lib/CompletedCard'
 
 module AgileTrello
+	ONE_DAY = 86400
+
 	class TrelloWeeklyVelocity
 		def initialize(parameters = {})
 			trello_credentials = TrelloCredentials.new(parameters[:public_key], parameters[:access_token])
@@ -16,7 +18,10 @@ module AgileTrello
 		def get(parameters = {})
 			board = @trello.get_board(parameters[:board_id])
 			return WeeklyVelocity.new(0) if board.lists.count === 0 
-			velocity = board.lists[0].cards
+			cards = board.lists[0].cards
+				.find_all{| card | card.actions[0].date > Time.now - (ONE_DAY * 7)}
+
+			velocity = cards
 				.map {| card | CompletedCard.new(card.name).complexity}
 				.reduce(0, :+)
 			return WeeklyVelocity.new(velocity);
@@ -87,7 +92,7 @@ class WeeklyVelocityTests < Test::Unit::TestCase
 		velocity.amount.should eql(card_complexity)
 	end
 
-	def test_sum_of_card_complexitis_returned_when_two_cards_entered_end_list_one_day_ago
+	def test_sum_of_card_complexities_returned_when_two_cards_entered_end_list_one_day_ago
 		board_id = SecureRandom.uuid
 		mockTrelloFactory = self
 		end_list_name = "End List#{SecureRandom.random_number(100)}"
@@ -105,6 +110,30 @@ class WeeklyVelocityTests < Test::Unit::TestCase
 		weekly_velocity = TrelloWeeklyVelocity.new(trello_factory: mockTrelloFactory)
 		velocity = weekly_velocity.get(board_id: board_id, end_list: end_list_name);
 		velocity.amount.should eql(card_complexity * 2)
+	end
+
+	def test_sum_only_includes_card_card_complexity_of_card_that_entered_end_list_in_last_seven_days
+		board_id = SecureRandom.uuid
+		mockTrelloFactory = self
+		end_list_name = "End List#{SecureRandom.random_number(100)}"
+		card_complexity = SecureRandom.random_number(13)
+		completed_one_day_ago_card = FakeCardBuilder.create
+			.moved_to(end_list_name).days_ago(1)
+			.complexity(card_complexity)
+			.build
+		completed_seven_days_ago_card = FakeCardBuilder.create
+			.moved_to(end_list_name).days_ago(8)
+			.complexity(card_complexity)
+			.build
+		list_with_two_card = FakeList.new(end_list_name)
+		list_with_two_card.add(completed_one_day_ago_card)
+		list_with_two_card.add(completed_seven_days_ago_card)
+		board_with_one_list = FakeBoard.new
+		board_with_one_list.add(list_with_two_card)
+		@created_trello = FakeTrello.new(board_id: board_id, board: board_with_one_list)
+		weekly_velocity = TrelloWeeklyVelocity.new(trello_factory: mockTrelloFactory)
+		velocity = weekly_velocity.get(board_id: board_id, end_list: end_list_name);
+		velocity.amount.should eql(card_complexity)
 	end
 
 	def create(trello_credentials)
