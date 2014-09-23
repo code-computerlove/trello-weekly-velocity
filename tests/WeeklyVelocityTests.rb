@@ -8,7 +8,8 @@ module AgileTrello
 	class TrelloWeeklyVelocity
 		def initialize(parameters = {})
 			trello_credentials = TrelloCredentials.new(parameters[:public_key], parameters[:access_token])
-			parameters[:trello_factory].create(trello_credentials)
+			trello_factory = parameters[:trello_factory].nil? ? TrelloFactory.new : parameters[:trello_factory]
+			trello_factory.create(trello_credentials)
 		end
 
 		def get(parameters = {})
@@ -51,6 +52,16 @@ class WeeklyVelocityTests < Test::Unit::TestCase
 		weekly_velocity.get(board_id: board_id).amount.should eql(0)
 	end
 
+	def test_zero_returned_when_board_has_lists_but_no_cards
+		board_id = SecureRandom.uuid
+		board_with_no_cards = FakeBoard.new
+		board_with_no_cards.add(FakeList.new('a list'))
+		@created_trello = FakeTrello.new(board_id: board_id, board: board_with_no_cards)
+		mockTrelloFactory = self
+		weekly_velocity = TrelloWeeklyVelocity.new(trello_factory: mockTrelloFactory)
+		weekly_velocity.get(board_id: board_id, end_list: '').amount.should eql(0)
+	end
+
 	def create(trello_credentials)
 		@trello_credentials = trello_credentials
 		@created_trello
@@ -82,6 +93,19 @@ class FakeBoard
 
 	def add(list)
 		@lists.push(list)
+	end
+end
+
+class FakeList
+	attr_reader :name, :cards
+
+	def initialize(name)
+		@name = name
+		@cards = []
+	end
+
+	def add(card)
+		@cards.push(card)
 	end
 end
 
