@@ -14,11 +14,10 @@ module AgileTrello
 
 		def get(parameters = {})
 			board = @trello.get_board(parameters[:board_id])
-			return WeeklyVelocity.new(0) if board.lists.count === 0
-			return WeeklyVelocity.new(0) if board.lists[0].cards.count === 0
+			return WeeklyVelocity.new(0) if board.lists.count === 0 || board.lists[0].cards.count === 0
 			card = board.lists[0].cards[0];
-			complexity = card.name.match(/\(\d*\)/).to_s.delete! '()'
-			return WeeklyVelocity.new(complexity.to_i);
+			completed_card = CompletedCard.new(card.name)
+			return WeeklyVelocity.new(completed_card.complexity);
 		end
 	end
 
@@ -27,6 +26,16 @@ module AgileTrello
 
 		def initialize(amount)
 			@amount = amount
+		end
+	end
+
+	class CompletedCard
+		attr_reader :complexity
+
+		COMPLEXITY_REGEX = /\(\d*\)/
+
+		def initialize(name)
+			@complexity = (name.match(COMPLEXITY_REGEX).to_s.delete! '()').to_i
 		end
 	end
 end
