@@ -6,6 +6,8 @@ require 'TrelloCredentials'
 require_relative '../lib/CompletedCard'
 require_relative '../lib/VelocityCalculator'
 require_relative '../lib/CompletedCardRepository'
+require_relative '../lib/TrelloBoards'
+require_relative '../lib/FilteredCardRepository'
 
 module AgileTrello
 	ONE_DAY = 86400
@@ -15,15 +17,16 @@ module AgileTrello
 			trello_credentials = TrelloCredentials.new(parameters[:public_key], parameters[:access_token])
 			trello_factory = parameters[:trello_factory].nil? ? TrelloFactory.new : parameters[:trello_factory]
 			trello = trello_factory.create(trello_credentials)
-			filter = CardsCompletedInLastSevenDaysFilter.new
-			last_seven_days_cards = FilteredCardRepostitory.new(trello, filter)
-			@completed_cards = CompletedCardRepository.new(last_seven_days_cards)
+			trello_boards = TrelloBoards.new(trello)
+			last_seven_days_cards = FilteredCardRepostitory.new(trello_boards)
+			@completed_cards = CompletedCardRepository.new(last_seven_days_cards)		
 		end
 
 		def get(parameters = {})
+			filter = CardsCompletedInLastSevenDaysFilter.new(parameters[:end_list])
 			velocity_calculator = VelocityCalculator.new
 			@completed_cards
-				.find(parameters[:board_id])
+				.find(board_id: parameters[:board_id], end_list: parameters[:end_list], filter: filter)
 				.each { | card | velocity_calculator.add(card.complexity) }	
 			return WeeklyVelocity.new(velocity_calculator.total);
 		end
@@ -37,27 +40,19 @@ module AgileTrello
 		end
 	end
 
-	class FilteredCardRepostitory 
-		def initialize(trello, filter)
-			@trello = trello
-			@filter = filter
-		end
-
-		def find(board_id)
-			board = @trello.get_board(board_id)
-			return [] if board.lists.count === 0 
-			return board.lists[0].cards.find_all {|card| @filter.match(card)} 
-		end
-	end
-
 	class CardsCompletedInLastSevenDaysFilter
 		SEVEN_DAYS_AGO = Time.now - (ONE_DAY * 7)
+		MOVE_INTO_LIST_ACTION = 'updateCard'
 
-		def initialize()
+		def initialize(end_list)
+			@end_list = end_list
 		end
 
 		def match(card)
-			card.actions[0].date > SEVEN_DAYS_AGO
+			moved_into_end_list_action = card.actions.find do | action | 
+				action.type == MOVE_INTO_LIST_ACTION && action.data['listAfter']['name'] == @end_list 
+			end   
+			moved_into_end_list_action != nil && moved_into_end_list_action.date > SEVEN_DAYS_AGO
 		end
 	end
 end
@@ -156,6 +151,29 @@ class WeeklyVelocityTests < Test::Unit::TestCase
 		board_with_one_list = FakeBoard.new
 		board_with_one_list.add(list_with_two_card)
 		@created_trello = FakeTrello.new(board_id: board_id, board: board_with_one_list)
+		weekly_velocity = TrelloWeeklyVelocity.new(trello_factory: mockTrelloFactory)
+		velocity = weekly_velocity.get(board_id: board_id, end_list: end_list_name);
+		velocity.amount.should eql(card_complexity)
+	end
+
+	def test_card_complexity_returned_when_card_entered_first_list_seven_days_ago_and_the_end_list_one_day_ago
+		board_id = SecureRandom.uuid
+		mockTrelloFactory = self
+		first_list_name = "First List#{SecureRandom.random_number(100)}"
+		end_list_name = "End List#{SecureRandom.random_number(100)}"
+		card_complexity = SecureRandom.random_number(13)
+		first_list = FakeList.new(first_list_name)
+		completed_one_day_ago_card = FakeCardBuilder.create
+			.moved_to(first_list_name).days_ago(7)
+			.moved_to(end_list_name).days_ago(1)
+			.complexity(card_complexity)
+			.build
+		end_list = FakeList.new(end_list_name)
+		end_list.add(completed_one_day_ago_card)
+		board_with_two_lists = FakeBoard.new
+		board_with_two_lists.add(first_list)
+		board_with_two_lists.add(end_list)
+		@created_trello = FakeTrello.new(board_id: board_id, board: board_with_two_lists)
 		weekly_velocity = TrelloWeeklyVelocity.new(trello_factory: mockTrelloFactory)
 		velocity = weekly_velocity.get(board_id: board_id, end_list: end_list_name);
 		velocity.amount.should eql(card_complexity)
