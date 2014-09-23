@@ -9,4 +9,5 @@ Gem::Specification.new do |spec|
   spec.license       = 'MIT'
   spec.add_runtime_dependency 'ruby-trello' 
   spec.add_runtime_dependency 'peach'
+  spec.add_runtime_dependency 'trello-factory'
 end
