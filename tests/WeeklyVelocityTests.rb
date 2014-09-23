@@ -9,11 +9,16 @@ module AgileTrello
 		def initialize(parameters = {})
 			trello_credentials = TrelloCredentials.new(parameters[:public_key], parameters[:access_token])
 			trello_factory = parameters[:trello_factory].nil? ? TrelloFactory.new : parameters[:trello_factory]
-			trello_factory.create(trello_credentials)
+			@trello = trello_factory.create(trello_credentials)
 		end
 
 		def get(parameters = {})
-			return WeeklyVelocity.new(0)
+			board = @trello.get_board(parameters[:board_id])
+			return WeeklyVelocity.new(0) if board.lists.count === 0
+			return WeeklyVelocity.new(0) if board.lists[0].cards.count === 0
+			card = board.lists[0].cards[0];
+			complexity = card.name.match(/\(\d*\)/).to_s.delete! '()'
+			return WeeklyVelocity.new(complexity.to_i);
 		end
 	end
 
@@ -60,6 +65,25 @@ class WeeklyVelocityTests < Test::Unit::TestCase
 		mockTrelloFactory = self
 		weekly_velocity = TrelloWeeklyVelocity.new(trello_factory: mockTrelloFactory)
 		weekly_velocity.get(board_id: board_id, end_list: '').amount.should eql(0)
+	end
+
+	def test_card_complexity_returned_when_card_entered_end_list_one_day_ago
+		board_id = SecureRandom.uuid
+		mockTrelloFactory = self
+		end_list_name = "End List#{SecureRandom.random_number(100)}"
+		card_complexity = SecureRandom.random_number(13)
+		completed_one_day_ago_card = FakeCardBuilder.create
+			.moved_to(end_list_name).days_ago(1)
+			.complexity(card_complexity)
+			.build
+		list_with_one_card = FakeList.new(end_list_name)
+		list_with_one_card.add(completed_one_day_ago_card)
+		board_with_one_list = FakeBoard.new
+		board_with_one_list.add(list_with_one_card)
+		@created_trello = FakeTrello.new(board_id: board_id, board: board_with_one_list)
+		weekly_velocity = TrelloWeeklyVelocity.new(trello_factory: mockTrelloFactory)
+		velocity = weekly_velocity.get(board_id: board_id, end_list: end_list_name);
+		velocity.amount.should eql(card_complexity)
 	end
 
 	def create(trello_credentials)
@@ -109,3 +133,78 @@ class FakeList
 	end
 end
 
+class FakeCardBuilder
+	ONE_DAY = 86400
+
+	def initialize
+		@fake_card = FakeCard.new 
+	end
+
+	def self.create 
+		FakeCardBuilder.new
+	end
+
+	def moved_to(list_name)
+		return MovementBuilder.new(self, @fake_card, list_name)
+	end
+
+	def complexity(complexity)
+		@fake_card.add_complexity(complexity)
+		return self
+	end
+
+	def build
+		@fake_card
+	end
+
+	class MovementBuilder
+		def initialize(fake_card_builder, fake_card, list_name)
+			@fake_card_builder = fake_card_builder
+			@fake_card = fake_card
+			@list_name = list_name
+			@todays_date = Time.now
+		end
+
+		def today
+			@fake_card.add_movement(list_name: @list_name, date: @todays_date)
+			return @fake_card_builder
+		end
+
+		def days_ago(days)
+			date = @todays_date - (ONE_DAY * days)
+			@fake_card.add_movement(list_name: @list_name, date: date)
+			return @fake_card_builder
+		end
+	end
+end
+
+class FakeCard
+	attr_reader :actions, :name
+
+	def initialize
+		@actions = []
+	end
+
+	def add_complexity(complexity)
+		@name = "{AClient} (#{complexity}) blah blah blah"
+	end
+
+	def add_movement(parameters)
+		action = FakeMovementAction.new(parameters)
+		@actions.push(action)
+	end
+end
+
+class FakeMovementAction 
+	attr_reader :type, :data, :date
+
+	def initialize(parameters)
+		@type = 'updateCard'
+		@date = parameters[:date]
+		@data = {
+			'listAfter' => {
+				'name' => parameters[:list_name]
+			}
+		}
+	end
+end
