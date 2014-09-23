@@ -4,6 +4,7 @@ require 'securerandom'
 
 require 'TrelloCredentials'
 require_relative '../lib/CompletedCard'
+require_relative '../lib/VelocityCalculator'
 
 module AgileTrello
 	ONE_DAY = 86400
@@ -13,18 +14,19 @@ module AgileTrello
 			trello_credentials = TrelloCredentials.new(parameters[:public_key], parameters[:access_token])
 			trello_factory = parameters[:trello_factory].nil? ? TrelloFactory.new : parameters[:trello_factory]
 			trello = trello_factory.create(trello_credentials)
-			@card_repository = CardRepostitory.new(trello)
+			filter = CardsCompletedInLastSevenDaysFilter.new
+			last_seven_days_cards = FilteredCardRepostitory.new(trello, filter)
+			@completed_cards = CompletedCardRepository.new(last_seven_days_cards)
 		end
 
 		def get(parameters = {})
-			seven_days_ago = Time.now - (ONE_DAY * 7)
-			cards = @card_repository.get(parameters[:board_id])
-				.find_all{| card | card.actions[0].date > seven_days_ago}
-
-			velocity = cards
-				.map {| card | CompletedCard.new(card.name).complexity}
-				.reduce(0, :+)
-			return WeeklyVelocity.new(velocity);
+			velocity_calculator = VelocityCalculator.new
+			@completed_cards
+				.find(parameters[:board_id])
+				.each do | card | 
+					velocity_calculator.add(card.complexity)
+				end
+			return WeeklyVelocity.new(velocity_calculator.total);
 		end
 	end
 
@@ -36,15 +38,38 @@ module AgileTrello
 		end
 	end
 
-	class CardRepostitory 
-		def initialize(trello)
+	class FilteredCardRepostitory 
+		def initialize(trello, filter)
 			@trello = trello
+			@filter = filter
 		end
 
-		def get(board_id)
+		def find(board_id)
 			board = @trello.get_board(board_id)
 			return [] if board.lists.count === 0 
-			return board.lists[0].cards 
+			return board.lists[0].cards.find_all {|card| @filter.match(card)} 
+		end
+	end
+
+	class CompletedCardRepository
+		def initialize(card_repository)
+			@card_repository = card_repository
+		end
+
+		def find(board_id)
+			cards = @card_repository.find(board_id)
+			return cards.map { | card | CompletedCard.new(card.name) }
+		end
+	end
+
+	class CardsCompletedInLastSevenDaysFilter
+		SEVEN_DAYS_AGO = Time.now - (ONE_DAY * 7)
+
+		def initialize()
+		end
+
+		def match(card)
+			card.actions[0].date > SEVEN_DAYS_AGO
 		end
 	end
 end
