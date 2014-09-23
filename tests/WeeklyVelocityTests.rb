@@ -24,9 +24,7 @@ module AgileTrello
 			velocity_calculator = VelocityCalculator.new
 			@completed_cards
 				.find(parameters[:board_id])
-				.each do | card | 
-					velocity_calculator.add(card.complexity)
-				end
+				.each { | card | velocity_calculator.add(card.complexity) }	
 			return WeeklyVelocity.new(velocity_calculator.total);
 		end
 	end
