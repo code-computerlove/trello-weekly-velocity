@@ -12,14 +12,14 @@ module AgileTrello
 		def initialize(parameters = {})
 			trello_credentials = TrelloCredentials.new(parameters[:public_key], parameters[:access_token])
 			trello_factory = parameters[:trello_factory].nil? ? TrelloFactory.new : parameters[:trello_factory]
-			@trello = trello_factory.create(trello_credentials)
+			trello = trello_factory.create(trello_credentials)
+			@card_repository = CardRepostitory.new(trello)
 		end
 
 		def get(parameters = {})
-			board = @trello.get_board(parameters[:board_id])
-			return WeeklyVelocity.new(0) if board.lists.count === 0 
-			cards = board.lists[0].cards
-				.find_all{| card | card.actions[0].date > Time.now - (ONE_DAY * 7)}
+			seven_days_ago = Time.now - (ONE_DAY * 7)
+			cards = @card_repository.get(parameters[:board_id])
+				.find_all{| card | card.actions[0].date > seven_days_ago}
 
 			velocity = cards
 				.map {| card | CompletedCard.new(card.name).complexity}
@@ -33,6 +33,18 @@ module AgileTrello
 
 		def initialize(amount)
 			@amount = amount
+		end
+	end
+
+	class CardRepostitory 
+		def initialize(trello)
+			@trello = trello
+		end
+
+		def get(board_id)
+			board = @trello.get_board(board_id)
+			return [] if board.lists.count === 0 
+			return board.lists[0].cards 
 		end
 	end
 end
