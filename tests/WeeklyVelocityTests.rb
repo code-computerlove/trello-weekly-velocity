@@ -5,6 +5,7 @@ require 'securerandom'
 require 'TrelloCredentials'
 require_relative '../lib/CompletedCard'
 require_relative '../lib/VelocityCalculator'
+require_relative '../lib/CompletedCardRepository'
 
 module AgileTrello
 	ONE_DAY = 86400
@@ -48,17 +49,6 @@ module AgileTrello
 			board = @trello.get_board(board_id)
 			return [] if board.lists.count === 0 
 			return board.lists[0].cards.find_all {|card| @filter.match(card)} 
-		end
-	end
-
-	class CompletedCardRepository
-		def initialize(card_repository)
-			@card_repository = card_repository
-		end
-
-		def find(board_id)
-			cards = @card_repository.find(board_id)
-			return cards.map { | card | CompletedCard.new(card.name) }
 		end
 	end
 
