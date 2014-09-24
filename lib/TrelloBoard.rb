@@ -5,9 +5,13 @@ module AgileTrello
 		end
 
 		def get_cards_after_list(end_list_name)
-			end_list = @board.lists.find{ | list | list.name == end_list_name}
-			return end_list.cards unless end_list.nil?
-			return []
+			found_end = false
+			cards = []
+			@board.lists.each do | list |
+				found_end = true if !found_end && (list.name == end_list_name)
+				cards = cards + list.cards
+			end
+			return cards 
 		end
 	end
 end
