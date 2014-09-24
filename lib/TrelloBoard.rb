@@ -8,8 +8,12 @@ module AgileTrello
 			found_end = false
 			cards = []
 			@board.lists.each do | list |
-				found_end = true if !found_end && (list.name == end_list_name)
-				cards = cards + list.cards
+				found_end = true if !found_end && (list.name.include? end_list_name)
+				if (found_end)
+					list.cards.each do | card |
+						cards.push(card)
+					end
+				end
 			end
 			return cards 
 		end

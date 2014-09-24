@@ -11,9 +11,9 @@ module AgileTrello
 
 		def match(card)
 			moved_into_end_list_action = card.actions.find do | action | 
-				action.type == MOVE_INTO_LIST_ACTION && action.data['listAfter']['name'] == @end_list 
+				action.type == MOVE_INTO_LIST_ACTION && action.data && action.data['listAfter'] && action.data['listAfter']['name'] == @end_list 
 			end   
-			moved_into_end_list_action.date > SEVEN_DAYS_AGO
+			moved_into_end_list_action && moved_into_end_list_action.date > SEVEN_DAYS_AGO
 		end
 	end
 end

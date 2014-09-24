@@ -1,4 +1,5 @@
 require 'TrelloCredentials'
+require 'TrelloFactory'
 require_relative '../lib/CompletedCard'
 require_relative '../lib/VelocityCalculator'
 require_relative '../lib/CompletedCardRepository'
