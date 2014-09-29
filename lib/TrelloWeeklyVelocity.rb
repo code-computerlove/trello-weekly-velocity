@@ -5,7 +5,7 @@ require_relative '../lib/VelocityCalculator'
 require_relative '../lib/CompletedCardRepository'
 require_relative '../lib/TrelloBoards'
 require_relative '../lib/FilteredCardRepository'
-require_relative '../lib/CardsCompletedInLastSevenDaysFilter'
+require_relative '../lib/CardsCompletedInLastSevenDaysFilterFactory'
 
 module AgileTrello
 	class TrelloWeeklyVelocity
@@ -15,11 +15,12 @@ module AgileTrello
 			trello = trello_factory.create(trello_credentials)
 			trello_boards = TrelloBoards.new(trello)
 			last_seven_days_cards = FilteredCardRepostitory.new(trello_boards)
-			@completed_cards = CompletedCardRepository.new(last_seven_days_cards)		
+			@completed_cards = CompletedCardRepository.new(last_seven_days_cards)
+			@filter_factory = CardCompletedInLastSevenDaysFilterFactory.new(trello_boards)		
 		end
 
 		def get(parameters = {})
-			filter = CardsCompletedInLastSevenDaysFilter.new(parameters[:end_list])
+			filter = @filter_factory.create(parameters[:board_id], parameters[:end_list])
 			velocity_calculator = VelocityCalculator.new
 			@completed_cards
 				.find(board_id: parameters[:board_id], end_list: parameters[:end_list], filter: filter)

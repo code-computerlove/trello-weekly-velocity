@@ -17,5 +17,12 @@ module AgileTrello
 			end
 			return cards 
 		end
+
+		def get_list_names_after(end_list_name)
+			list_names = @board.lists.map { | list | list.name }
+			end_list_position = list_names.index{ |list_name | list_name.include? end_list_name  }
+			return [] unless end_list_position
+			return list_names.slice(end_list_position+1, list_names.length)
+		end
 	end
 end
