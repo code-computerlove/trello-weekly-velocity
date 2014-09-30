@@ -1,5 +1,5 @@
 Gem::Specification.new do |spec|
-  spec.name        = 'trello-weekly_velocity'
+  spec.name        = 'trello-weekly-velocity'
   spec.version     = '1.0.0'
   spec.summary     = "Calculates weekly velocity from trello boards"
   spec.authors     = ["iainjmitchell"]
