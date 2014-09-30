@@ -11,7 +11,6 @@ module AgileTrello
 		end
 
 		def match(card)
-			puts card.name
 			moved_into_end_list_action = find_movement_action(@end_list, card) 
 			count = 0
 			until (moved_into_end_list_action || count == @lists_after_end_list.length) do
